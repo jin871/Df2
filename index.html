@@ -123,8 +123,11 @@
       return deck.sort(() => Math.random() - 0.5);
     }
 
-    function dealCards(players) {
-      const deck = createDeck();
+    function dealCardsForOnePlayer(deck, numCards) {
+      return deck.slice(0, numCards);
+    }
+
+    function dealCardsForTwoPlayers(players, deck) {
       const cardsPerPlayer = Math.floor(deck.length / players.length);
       const hands = {};
       players.forEach((player, i) => {
@@ -238,7 +241,7 @@
       log(`現在のターン: ${turnOrder[currentTurnIndex] || "なし"}`);
     }
 
-       // ゲーム操作
+    // ゲーム操作
     document.getElementById("joinBtn").onclick = async () => {
       myName = document.getElementById("playerName").value.trim();
       if (!myName) {
@@ -260,25 +263,34 @@
         if (roomRef) roomRef.off();
         roomRef.on("value", snapshot => {
           const room = snapshot.val();
-          log(`リアルタイムデータ: ${JSON.stringify(room)}`); // デバッグ用
+          log(`リアルタイムデータ: ${JSON.stringify(room)}`);
           if (room) {
             updateUI(room);
-            // プレイヤーが2人揃ったらゲーム開始
-            if (room.players && Array.isArray(room.players) && room.players.length === 2 && !room.hands) {
+            // プレイヤーが2人揃ったらプレイヤー2に手札を配りゲーム開始
+            if (room.players && Array.isArray(room.players) && room.players.length === 2 && !room.gameStarted) {
               log(`プレイヤー確認: ${room.players.join(", ")}`);
+              // プレイヤー1の手札はすでに配られているので、残りのデッキを使用
+              const deck = createDeck();
+              const player1Hand = room.hands[room.players[0]] || [];
+              const remainingDeck = deck.filter(card => 
+                !player1Hand.some(p1Card => p1Card.rank === card.rank && p1Card.suit === card.suit)
+              );
+              const hands = room.hands || {};
+              hands[room.players[1]] = dealCardsForOnePlayer(remainingDeck, player1Hand.length);
               roomRef.set({
                 players: room.players,
-                hands: dealCards(room.players),
+                hands: hands,
                 turnOrder: room.players,
                 currentTurnIndex: 0,
                 fieldCards: [],
                 revolution: false,
                 sevenPassActive: false,
-                passedPlayers: []
+                passedPlayers: [],
+                gameStarted: true
               }).then(() => {
                 log(`ルームID: ${roomId}`);
                 log(`プレイヤー: ${room.players.join(", ")}`);
-                log("ゲーム開始！カードを配りました");
+                log("ゲーム開始！プレイヤー2にカードを配りました");
                 document.getElementById("gameArea").style.display = "block";
                 document.getElementById("lobbyArea").style.display = "none";
               }).catch(error => {
@@ -291,17 +303,17 @@
         // プレイヤー追加
         await roomRef.child("players").transaction(players => {
           players = players || [];
-          log(`トランザクション前: ${JSON.stringify(players)}`); // デバッグ用
+          log(`トランザクション前: ${JSON.stringify(players)}`);
           if (players.length >= 2) {
             log("トランザクション: 2人以上で中止");
-            return; // 2人以上なら追加しない
+            return;
           }
           if (!players.includes(myName)) {
             players.push(myName);
           }
-          log(`トランザクション後: ${JSON.stringify(players)}`); // デバッグ用
+          log(`トランザクション後: ${JSON.stringify(players)}`);
           return players;
-        }, (error, committed, snapshot) => {
+        }, async (error, committed, snapshot) => {
           if (error) {
             showError(`参加失敗: ${error.message}`);
             log(`トランザクションエラー: ${error.message}`);
@@ -315,9 +327,23 @@
           const players = snapshot.val();
           log(`トランザクション成功: ${JSON.stringify(players)}`);
           log(`参加成功: ${myName} (ルームID: ${roomId})`);
+
+          // プレイヤー1（最初に参加）の場合、手札を配る
           if (players.length === 1) {
-            document.getElementById("waitingMessage").style.display = "block";
-            log("他のプレイヤーを待機中...");
+            const deck = createDeck();
+            const cardsPerPlayer = Math.floor(deck.length / 2); // 2人分なので半分
+            const playerHand = dealCardsForOnePlayer(deck, cardsPerPlayer);
+            const hands = {};
+            hands[myName] = playerHand;
+            try {
+              await roomRef.update({ hands });
+              log(`プレイヤー1 (${myName}) に手札を配りました`);
+              document.getElementById("gameArea").style.display = "block"; // 手札表示のため
+              document.getElementById("waitingMessage").style.display = "block";
+              log("他のプレイヤーを待機中...");
+            } catch (error) {
+              showError(`手札配布に失敗: ${error.message}`);
+            }
           }
         });
       } catch (error) {
