@@ -62,7 +62,6 @@
     // Initialize Firebase
     try {
       const app = firebase.initializeApp(firebaseConfig);
-      // Analyticsは必須でないので、エラー発生時はスキップ
       try {
         const analytics = firebase.analytics(app);
         log("Firebase Analytics初期化成功");
@@ -219,8 +218,7 @@
       });
     }
 
-
-      function updateUI(room) {
+    function updateUI(room) {
       if (!room || !myName) {
         log("UI更新: ルームデータまたはプレイヤー名が未設定");
         return;
@@ -240,7 +238,7 @@
       log(`現在のターン: ${turnOrder[currentTurnIndex] || "なし"}`);
     }
 
-    // ゲーム操作
+       // ゲーム操作
     document.getElementById("joinBtn").onclick = async () => {
       myName = document.getElementById("playerName").value.trim();
       if (!myName) {
@@ -262,10 +260,12 @@
         if (roomRef) roomRef.off();
         roomRef.on("value", snapshot => {
           const room = snapshot.val();
+          log(`リアルタイムデータ: ${JSON.stringify(room)}`); // デバッグ用
           if (room) {
             updateUI(room);
             // プレイヤーが2人揃ったらゲーム開始
-            if (room.players && room.players.length === 2 && !room.hands) {
+            if (room.players && Array.isArray(room.players) && room.players.length === 2 && !room.hands) {
+              log(`プレイヤー確認: ${room.players.join(", ")}`);
               roomRef.set({
                 players: room.players,
                 hands: dealCards(room.players),
@@ -291,23 +291,29 @@
         // プレイヤー追加
         await roomRef.child("players").transaction(players => {
           players = players || [];
+          log(`トランザクション前: ${JSON.stringify(players)}`); // デバッグ用
           if (players.length >= 2) {
+            log("トランザクション: 2人以上で中止");
             return; // 2人以上なら追加しない
           }
           if (!players.includes(myName)) {
             players.push(myName);
           }
+          log(`トランザクション後: ${JSON.stringify(players)}`); // デバッグ用
           return players;
         }, (error, committed, snapshot) => {
           if (error) {
             showError(`参加失敗: ${error.message}`);
+            log(`トランザクションエラー: ${error.message}`);
             return;
           }
           if (!committed) {
             showError("ルームが満員です");
+            log("トランザクション: コミット失敗");
             return;
           }
           const players = snapshot.val();
+          log(`トランザクション成功: ${JSON.stringify(players)}`);
           log(`参加成功: ${myName} (ルームID: ${roomId})`);
           if (players.length === 1) {
             document.getElementById("waitingMessage").style.display = "block";
