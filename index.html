@@ -18,7 +18,7 @@
   </style>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics-compat.js"></script>
 </head>
 <body>
   <h1>オンライン大富豪（2人プレイ）</h1>
@@ -60,7 +60,13 @@
     // Initialize Firebase
     try {
       const app = firebase.initializeApp(firebaseConfig);
-      const analytics = firebase.analytics(app); // Analytics (optional)
+      // Analyticsは必須でないので、エラー発生時はスキップ
+      try {
+        const analytics = firebase.analytics(app);
+        log("Firebase Analytics初期化成功");
+      } catch (analyticsError) {
+        log(`Firebase Analytics初期化失敗（スキップ）: ${analyticsError.message}`);
+      }
       log("Firebase初期化成功");
     } catch (error) {
       showError(`Firebase初期化失敗: ${error.message}`);
@@ -100,7 +106,7 @@
       return `${card.rank}${card.suit}`;
     }
 
-// デッキ生成と配布
+    // デッキ生成と配布
     function createDeck() {
       const deck = [];
       for (let suit of suits) {
@@ -121,7 +127,8 @@
       return hands;
     }
 
-    // ゲームロジック
+
+     // ゲームロジック
     function getFieldRank(cards) {
       return cards.length > 0 ? cards[0].rank : null;
     }
@@ -181,7 +188,6 @@
       log(`手札表示: ${myName} の手札 ${playerHands[myName].length}枚`);
     }
 
-
     function displayField(fieldCards) {
       const fieldArea = document.getElementById("fieldArea");
       fieldArea.innerHTML = fieldCards.length === 0 ? "(場は空)" : "";
@@ -206,6 +212,7 @@
         statusArea.appendChild(div);
       });
     }
+
 
     function updateUI(room) {
       if (!room || !myName) {
@@ -272,7 +279,7 @@
           }
         });
 
-       // プレイヤー追加
+        // プレイヤー追加
         await roomRef.child("players").transaction(players => {
           players = players || [];
           if (players.length >= 2) {
@@ -302,6 +309,7 @@
         showError(`ルーム操作に失敗: ${error.message}`);
       }
     };
+
 
     document.getElementById("playButton").onclick = async () => {
       if (turnOrder[currentTurnIndex] !== myName) return;
