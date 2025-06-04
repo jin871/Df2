@@ -15,6 +15,7 @@
     #gameArea { display: none; }
     #lobbyArea { margin: 20px 0; }
     #errorMessage { color: red; }
+    #roomIdDisplay { margin: 10px 0; font-weight: bold; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
@@ -28,6 +29,7 @@
     <label>ルームID（参加する場合）: <input type="text" id="roomIdInput" placeholder="空なら新規作成" /></label>
     <br />
     <button id="joinBtn">ルームに参加/作成</button>
+    <div id="roomIdDisplay"></div>
     <div id="waitingMessage" style="display: none; color: blue;">他のプレイヤーを待機中...</div>
     <div id="errorMessage"></div>
   </div>
@@ -102,6 +104,11 @@
       log(`エラー: ${text}`);
     }
 
+    function displayRoomId(roomId) {
+      const roomIdDisplay = document.getElementById("roomIdDisplay");
+      roomIdDisplay.textContent = `ルームID: ${roomId}`;
+    }
+
     function cardToText(card) {
       return `${card.rank}${card.suit}`;
     }
@@ -127,8 +134,7 @@
       return hands;
     }
 
-
-     // ゲームロジック
+    // ゲームロジック
     function getFieldRank(cards) {
       return cards.length > 0 ? cards[0].rank : null;
     }
@@ -214,7 +220,7 @@
     }
 
 
-    function updateUI(room) {
+      function updateUI(room) {
       if (!room || !myName) {
         log("UI更新: ルームデータまたはプレイヤー名が未設定");
         return;
@@ -244,6 +250,9 @@
       const roomIdInput = document.getElementById("roomIdInput").value.trim();
       const roomId = roomIdInput || Math.random().toString(36).substring(2, 10);
       roomRef = db.ref(`rooms/${roomId}`);
+
+      // ルームIDを画面に表示
+      displayRoomId(roomId);
 
       // エラーメッセージをクリア
       document.getElementById("errorMessage").textContent = "";
@@ -309,7 +318,6 @@
         showError(`ルーム操作に失敗: ${error.message}`);
       }
     };
-
 
     document.getElementById("playButton").onclick = async () => {
       if (turnOrder[currentTurnIndex] !== myName) return;
